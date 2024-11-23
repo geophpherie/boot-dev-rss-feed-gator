@@ -67,6 +67,10 @@ func handlerReset(s *State, cmd command) error {
 		return err
 	}
 
+	if err := s.db.DeleteAllFeedFollows(context.Background()); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -118,13 +122,9 @@ func handlerAgg(s *State, cmd command) error {
 	return nil
 }
 
-func handlerAddFeed(s *State, cmd command) error {
+func handlerAddFeed(s *State, cmd command, user database.User) error {
 	if len(cmd.args) != 2 {
 		return errors.New("addfeed handler requires two arguments, feed name and feed url")
-	}
-	user, err := s.db.GetUserByName(context.Background(), s.config.CurrentUserName)
-	if err != nil {
-		return err
 	}
 
 	now := time.Now()
@@ -137,11 +137,19 @@ func handlerAddFeed(s *State, cmd command) error {
 		UserID:    user.ID,
 	}
 
-	_, err = s.db.CreateFeed(context.Background(), args)
+	feed, err := s.db.CreateFeed(context.Background(), args)
 	if err != nil {
 		return err
 	}
 
+	argss := database.CreateFeedFollowsParams{
+		ID:        uuid.New(),
+		CreatedAt: now,
+		UpdatedAt: now,
+		UserID:    user.ID,
+		FeedID:    feed.ID,
+	}
+	s.db.CreateFeedFollows(context.Background(), argss)
 	return nil
 }
 
@@ -161,6 +169,72 @@ func handlerAllFeeds(s *State, cmd command) error {
 			return err
 		}
 		fmt.Printf("Name: %v URL: %v User: %v\n", feed.Name, feed.Url, user.Name)
+	}
+
+	return nil
+}
+
+func handlerFollow(s *State, cmd command, user database.User) error {
+	if len(cmd.args) != 1 {
+		return errors.New("follow handler expects a single argument, the url")
+	}
+
+	feed, err := s.db.GetFeedByUrl(context.Background(), cmd.args[0])
+	if err != nil {
+		return err
+	}
+
+	now := time.Now()
+	args := database.CreateFeedFollowsParams{
+		ID:        uuid.New(),
+		CreatedAt: now,
+		UpdatedAt: now,
+		UserID:    user.ID,
+		FeedID:    feed.ID,
+	}
+	feedFollow, err := s.db.CreateFeedFollows(context.Background(), args)
+	if err != nil {
+		return err
+	}
+
+	fmt.Println(feedFollow.FeedName, user)
+	return nil
+}
+
+func handlerUnfollow(s *State, cmd command, user database.User) error {
+	if len(cmd.args) != 1 {
+		return errors.New("follow handler expects a single argument, the url")
+	}
+
+	feed, err := s.db.GetFeedByUrl(context.Background(), cmd.args[0])
+	if err != nil {
+		return err
+	}
+
+	args := database.DeleteFeedFollowParams{
+		UserID: user.ID,
+		FeedID: feed.ID,
+	}
+	err = s.db.DeleteFeedFollow(context.Background(), args)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func handlerFollowing(s *State, cmd command, user database.User) error {
+	if len(cmd.args) != 0 {
+		return errors.New("following handler expects no arguments")
+	}
+
+	feedFollows, err := s.db.GetAllFeedFollowsByUser(context.Background(), user.ID)
+	if err != nil {
+		return err
+	}
+
+	for _, feedFollow := range feedFollows {
+		fmt.Println(feedFollow.FeedName)
 	}
 
 	return nil
