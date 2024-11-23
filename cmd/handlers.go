@@ -5,7 +5,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"html"
 	"time"
 
 	"github.com/google/uuid"
@@ -96,30 +95,22 @@ func handlerUsers(s *State, cmd command) error {
 }
 
 func handlerAgg(s *State, cmd command) error {
-	if len(cmd.args) != 0 {
-		return errors.New("user handler requires no arguments")
+	if len(cmd.args) != 1 {
+		return errors.New("agg handler requires one argument, time_between_reqs")
 	}
 
-	feed, err := fetchFeed(context.Background(), "https://www.wagslane.dev/index.xml")
+	duration, err := time.ParseDuration(cmd.args[0])
 	if err != nil {
 		return err
 	}
 
-	cleanFeed := RSSFeed{}
+	fmt.Printf("Collecting feeds every %vm%vs\n", duration.Minutes(), duration.Seconds())
 
-	cleanFeed.Channel.Title = html.UnescapeString(feed.Channel.Title)
-	cleanFeed.Channel.Description = html.UnescapeString(feed.Channel.Description)
-	cleanFeed.Channel.Link = feed.Channel.Link
+	ticker := time.NewTicker(duration)
 
-	for _, item := range feed.Channel.Item {
-		item.Title = html.UnescapeString(item.Title)
-		item.Description = html.UnescapeString(item.Description)
-		item.Link = item.Link
-
-		cleanFeed.Channel.Item = append(cleanFeed.Channel.Item, item)
+	for ; ; <-ticker.C {
+		scrapeFeeds(s)
 	}
-
-	return nil
 }
 
 func handlerAddFeed(s *State, cmd command, user database.User) error {
