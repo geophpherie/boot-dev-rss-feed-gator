@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/google/uuid"
@@ -229,4 +230,35 @@ func handlerFollowing(s *State, cmd command, user database.User) error {
 	}
 
 	return nil
+}
+
+func handlerBrowse(s *State, cmd command, user database.User) error {
+	var limit int
+	if len(cmd.args) == 0 {
+		limit = 2
+	}
+	if len(cmd.args) == 1 {
+		val, err := strconv.Atoi(cmd.args[0])
+		if err != nil {
+			return err
+		}
+		limit = val
+	}
+
+	fmt.Printf("Getting %v posts", limit)
+	args := database.GetPostsForUserParams{
+		UserID: user.ID,
+		Limit:  int32(limit),
+	}
+	posts, err := s.db.GetPostsForUser(context.Background(), args)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("%v posts found", len(posts))
+	for i, post := range posts {
+		fmt.Printf("%v: %v", i, post.Title)
+	}
+
+	return nil
+
 }

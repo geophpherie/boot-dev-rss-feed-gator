@@ -10,6 +10,8 @@ import (
 	"io"
 	"net/http"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 type RSSFeed struct {
@@ -84,8 +86,29 @@ func scrapeFeeds(s *State) error {
 		item.Description = html.UnescapeString(item.Description)
 
 		cleanFeed.Channel.Item = append(cleanFeed.Channel.Item, item)
-
-		fmt.Println(item.Title)
+		fmt.Println("creating post")
+		t, err := time.Parse("Mon, 02 Jan 2006 15:04:05 -0700", item.PubDate)
+		if err != nil {
+			fmt.Print("Unable to parse time", item.PubDate)
+			continue
+		}
+		now := time.Now()
+		args := database.CreatePostParams{
+			ID:          uuid.New(),
+			CreatedAt:   now,
+			UpdatedAt:   now,
+			Title:       item.Title,
+			Url:         item.Link,
+			Description: sql.NullString{String: item.Description, Valid: true},
+			PublishedAt: sql.NullTime{Time: t, Valid: true},
+			FeedID:      nextFeed.ID,
+		}
+		_, err = s.db.CreatePost(context.Background(), args)
+		if err != nil {
+			fmt.Println("Unable to create Post")
+			fmt.Println(err)
+			return err
+		}
 	}
 
 	return nil
